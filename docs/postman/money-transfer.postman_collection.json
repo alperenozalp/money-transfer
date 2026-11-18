@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "d67093b6-a113-44d7-b5d7-805b97fdb571",
-    "name": "Money Transfer API (scaffold)",
-    "description": "Request templates from spec.md. Endpoints and local authentication are not implemented yet.",
+    "name": "Money Transfer API",
+    "description": "Requests for the account and transfer API. Configure a valid access token and provisioned account variables before sending.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -65,6 +65,13 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/transfers?page=0&size=20"
+          }
+        },
+        {
+          "name": "List outgoing transfers by date",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transfers?page=0&size=20&startDate=2026-11-18&endDate=2026-11-19"
           }
         },
         {

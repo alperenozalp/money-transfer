@@ -71,4 +71,18 @@ public class Account {
     public BigDecimal getBalance() {
         return balance;
     }
+
+    public void debit(BigDecimal amount) {
+        if (amount.signum() <= 0 || balance.compareTo(amount) < 0) {
+            throw new IllegalStateException("A debit must be positive and covered by the account balance.");
+        }
+        balance = balance.subtract(amount);
+    }
+
+    public void credit(BigDecimal amount) {
+        if (amount.signum() <= 0) {
+            throw new IllegalStateException("A credit must be positive.");
+        }
+        balance = balance.add(amount);
+    }
 }

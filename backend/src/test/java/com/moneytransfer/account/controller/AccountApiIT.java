@@ -73,6 +73,7 @@ class AccountApiIT {
 
     @BeforeEach
     void clearDatabase() {
+        jdbcTemplate.update("DELETE FROM ledger_entries");
         jdbcTemplate.update("DELETE FROM transfers");
         accountRepository.deleteAll();
         customerRepository.deleteAll();

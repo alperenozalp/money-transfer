@@ -1,19 +1,14 @@
 package com.moneytransfer.account.service;
 
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 
-import com.moneytransfer.account.config.TransferLimitProperties;
 import com.moneytransfer.account.dto.AccountResponse;
 import com.moneytransfer.account.dto.TransferLimitsResponse;
 import com.moneytransfer.account.model.Account;
 import com.moneytransfer.account.model.AccountStatus;
 import com.moneytransfer.account.repository.AccountRepository;
-import com.moneytransfer.account.repository.TransferLimitRepository;
+import com.moneytransfer.account.service.TransferLimitService.Snapshot;
 import com.moneytransfer.customer.exception.CustomerNotProvisionedException;
 import com.moneytransfer.customer.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +28,6 @@ import static org.mockito.Mockito.when;
 class AccountServiceTest {
 
     private static final String SUBJECT = "identity-subject-1";
-    private static final Instant NOW = Instant.parse("2026-11-18T23:30:00Z");
 
     @Mock
     private AccountRepository accountRepository;
@@ -42,25 +36,13 @@ class AccountServiceTest {
     private CustomerRepository customerRepository;
 
     @Mock
-    private TransferLimitRepository transferLimitRepository;
+    private TransferLimitService transferLimitService;
 
     private AccountService accountService;
-    private TransferLimitProperties properties;
 
     @BeforeEach
     void setUp() {
-        properties = new TransferLimitProperties(
-                ZoneId.of("Europe/Istanbul"),
-                new TransferLimitProperties.Limits(
-                        new BigDecimal("50000.00"),
-                        new BigDecimal("100000.00"),
-                        new BigDecimal("500000.00")));
-        accountService = new AccountService(
-                accountRepository,
-                customerRepository,
-                transferLimitRepository,
-                properties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        accountService = new AccountService(accountRepository, customerRepository, transferLimitService);
     }
 
     private void givenProvisionedCustomer() {
@@ -89,16 +71,12 @@ class AccountServiceTest {
     @Test
     void calculatesDailyAndMonthlyLimitsUsingIstanbulCalendarBoundaries() {
         givenProvisionedCustomer();
-        when(transferLimitRepository.sumCompletedOutgoing(
-                        SUBJECT,
-                        Instant.parse("2026-11-18T21:00:00Z"),
-                        Instant.parse("2026-11-19T21:00:00Z")))
-                .thenReturn(new BigDecimal("250.00"));
-        when(transferLimitRepository.sumCompletedOutgoing(
-                        SUBJECT,
-                        Instant.parse("2026-10-31T21:00:00Z"),
-                        Instant.parse("2026-11-30T21:00:00Z")))
-                .thenReturn(new BigDecimal("1250.00"));
+        when(transferLimitService.currentFor(SUBJECT)).thenReturn(new Snapshot(
+                new BigDecimal("50000.00"),
+                new BigDecimal("100000.00"),
+                new BigDecimal("500000.00"),
+                new BigDecimal("250.00"),
+                new BigDecimal("1250.00")));
 
         TransferLimitsResponse response = accountService.getTransferLimits(SUBJECT);
 
@@ -110,16 +88,12 @@ class AccountServiceTest {
     @Test
     void remainingLimitsAreClampedAtZero() {
         givenProvisionedCustomer();
-        when(transferLimitRepository.sumCompletedOutgoing(
-                        SUBJECT,
-                        Instant.parse("2026-11-18T21:00:00Z"),
-                        Instant.parse("2026-11-19T21:00:00Z")))
-                .thenReturn(new BigDecimal("100001.00"));
-        when(transferLimitRepository.sumCompletedOutgoing(
-                        SUBJECT,
-                        Instant.parse("2026-10-31T21:00:00Z"),
-                        Instant.parse("2026-11-30T21:00:00Z")))
-                .thenReturn(new BigDecimal("500001.00"));
+        when(transferLimitService.currentFor(SUBJECT)).thenReturn(new Snapshot(
+                new BigDecimal("50000.00"),
+                new BigDecimal("100000.00"),
+                new BigDecimal("500000.00"),
+                new BigDecimal("100001.00"),
+                new BigDecimal("500001.00")));
 
         TransferLimitsResponse response = accountService.getTransferLimits(SUBJECT);
 
