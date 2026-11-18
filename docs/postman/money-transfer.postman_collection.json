@@ -1,0 +1,132 @@
+{
+  "info": {
+    "_postman_id": "d67093b6-a113-44d7-b5d7-805b97fdb571",
+    "name": "Money Transfer API (scaffold)",
+    "description": "Request templates from spec.md. Endpoints and local authentication are not implemented yet.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
+    { "key": "accessToken", "value": "" },
+    { "key": "sourceAccountId", "value": "replace-with-synthetic-account-id" },
+    { "key": "receiverIban", "value": "replace-with-synthetic-internal-iban" },
+    { "key": "transferId", "value": "replace-with-transfer-id" }
+  ],
+  "item": [
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "List accounts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts"
+          }
+        },
+        {
+          "name": "Get transfer limits",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts/transfer-limits"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "Create transfer (success template)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"125.00\",\n  \"description\": \"Synthetic test transfer\"\n}"
+            },
+            "url": "{{baseUrl}}/transfers"
+          }
+        },
+        {
+          "name": "List outgoing transfers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transfers?page=0&size=20"
+          }
+        },
+        {
+          "name": "Get outgoing transfer",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transfers/{{transferId}}"
+          }
+        },
+        {
+          "name": "Validation error template",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"0\"\n}"
+            },
+            "url": "{{baseUrl}}/transfers"
+          }
+        },
+        {
+          "name": "Idempotency conflict template",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "reuse-a-key-with-different-body" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"250.00\"\n}"
+            },
+            "url": "{{baseUrl}}/transfers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "item": [
+        {
+          "name": "Get monthly transfer statistics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/statistics/monthly-transfers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authorization error template",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "url": "{{baseUrl}}/accounts"
+      }
+    }
+  ]
+}
