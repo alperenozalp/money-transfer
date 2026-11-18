@@ -18,8 +18,19 @@ spring:
   jackson:
     default-property-inclusion: non_null
 
+transfer:
+  business-time-zone: ${BUSINESS_TIME_ZONE:Europe/Istanbul}
+  limits:
+    per-transfer: ${TRANSFER_LIMITS_PER_TRANSFER:50000.00}
+    daily: ${TRANSFER_LIMITS_DAILY:100000.00}
+    monthly: ${TRANSFER_LIMITS_MONTHLY:500000.00}
+
 server:
   shutdown: graceful
+
+logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"
 
 management:
   endpoints:

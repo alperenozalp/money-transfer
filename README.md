@@ -1,6 +1,6 @@
 # Money Transfer
 
-Initial monorepo scaffold for the internal money-transfer case study. It contains the backend and frontend build/test foundations, local Docker Compose services, and a Postman collection template. Business capabilities and REST endpoints have not been implemented yet.
+Internal money-transfer case study. The backend currently implements authenticated account listing and transfer-limit reads; transfer execution and the other specified endpoints are not implemented yet.
 
 ## Selected versions
 
@@ -32,7 +32,7 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The React development server is available at <http://localhost:5173>, the backend at <http://localhost:8080>, and PostgreSQL is published only on `127.0.0.1` using the port in `.env`. PostgreSQL data is kept in the `postgres_data` named volume. The backend and frontend are development services; no transfer endpoints or OIDC provider are configured yet.
+The React development server is available at <http://localhost:5173>, the backend at <http://localhost:8080>, and PostgreSQL is published only on `127.0.0.1` using the port in `.env`. PostgreSQL data is kept in the `postgres_data` named volume. The account endpoints require an OIDC issuer and an already-provisioned customer; provider configuration and local account seed data are not included.
 
 Stop the services and keep local database data:
 
@@ -58,9 +58,11 @@ mvn test
 mvn verify
 ```
 
-`mvn test` runs the fast JUnit 5/Surefire suite. `mvn verify` also runs `*IT` integration tests through Failsafe. The initial PostgreSQL Testcontainers smoke test skips when Docker is unavailable; database-backed integration tests require a running Docker Engine. No H2 substitute is configured. The Flyway migration directory is `backend/src/main/resources/db/migration`.
+`mvn test` runs the fast JUnit 5/Surefire suite. `mvn verify` also runs `*IT` integration tests through Failsafe. The account API integration tests use Testcontainers PostgreSQL and require a running Docker Engine. No H2 substitute is configured. Flyway creates the customer, account, and minimal completed-transfer totals tables from `backend/src/main/resources/db/migration`.
 
-JaCoCo reports are generated under `backend/target/site/jacoco/`. The 80% instruction-coverage gate is intended for application/domain functionality; the Spring Boot entry point and generated code are excluded. Trivial accessors should not be used to inflate the measured coverage. The scaffold has no implemented application/domain functionality yet, so meaningful coverage will be established as those capabilities and their tests are added.
+The account endpoints are `GET /api/v1/accounts` and `GET /api/v1/accounts/transfer-limits`. Defaults are 50,000 TRY per transfer, 100,000 TRY daily, and 500,000 TRY monthly. Override them with `TRANSFER_LIMITS_PER_TRANSFER`, `TRANSFER_LIMITS_DAILY`, and `TRANSFER_LIMITS_MONTHLY`; override the business timezone with `BUSINESS_TIME_ZONE` (default `Europe/Istanbul`).
+
+JaCoCo reports are generated under `backend/target/site/jacoco/`. The 80% instruction-coverage gate is intended for application/domain functionality; the Spring Boot entry point and generated code are excluded. Trivial accessors should not be used to inflate the measured coverage.
 
 ## Frontend
 
@@ -77,4 +79,4 @@ Vitest uses jsdom and React Testing Library. `npm run test:coverage` generates a
 
 ## Postman
 
-Import `docs/postman/money-transfer.postman_collection.json` and optionally `docs/postman/money-transfer.local.postman_environment.json.example`. These are request templates for the specified API, not runnable examples until the API and local authentication setup exist. Use synthetic data only.
+Import `docs/postman/money-transfer.postman_collection.json` and optionally `docs/postman/money-transfer.local.postman_environment.json.example`. The account GET requests are implemented, but they require a configured JWT issuer and a provisioned customer; other collection entries are templates for endpoints not implemented yet. Use synthetic data only.
