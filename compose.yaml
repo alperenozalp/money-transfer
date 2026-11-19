@@ -22,11 +22,12 @@ services:
       dockerfile: Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: local
+      OIDC_ISSUER_URI: ${OIDC_ISSUER_URI:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-money_transfer}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-money_transfer}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,8 +38,9 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_API_PROXY_TARGET: http://backend:8080
+      VITE_DEMO_AUTH_ENABLED: "true"
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       - backend
 

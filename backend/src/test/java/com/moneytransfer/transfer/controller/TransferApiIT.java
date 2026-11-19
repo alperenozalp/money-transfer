@@ -170,6 +170,16 @@ class TransferApiIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
 
+        mockMvc.perform(get("/api/v1/statistics/monthly-transfers")
+                        .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(6))
+                .andExpect(jsonPath("$.data[0].month").value("2026-11"))
+                .andExpect(jsonPath("$.data[0].completedTransferCount").value(1))
+                .andExpect(jsonPath("$.data[0].completedOutgoingAmount").value("10.00"))
+                .andExpect(jsonPath("$.data[1].completedTransferCount").value(0))
+                .andExpect(jsonPath("$.data[1].completedOutgoingAmount").value("0.00"));
+
         mockMvc.perform(get("/api/v1/transfers/" + transferId)
                         .with(jwt().jwt(token -> token.subject(BOB_SUBJECT))))
                 .andExpect(status().isNotFound())
