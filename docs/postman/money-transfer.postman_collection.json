@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "d67093b6-a113-44d7-b5d7-805b97fdb571",
-    "name": "Money Transfer API",
-    "description": "Requests for the account and transfer API. Configure a valid access token and provisioned account variables before sending.",
+    "name": "Money Transfer API - Case Study",
+    "description": "End-to-end local demo workflow. Import and select the included local environment, run Create demo session first, then run the remaining requests in order. Create transfer changes demo account balances.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -18,11 +18,116 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
     { "key": "accessToken", "value": "" },
-    { "key": "sourceAccountId", "value": "replace-with-synthetic-account-id" },
-    { "key": "receiverIban", "value": "replace-with-synthetic-internal-iban" },
-    { "key": "transferId", "value": "replace-with-transfer-id" }
+    { "key": "customerId", "value": "" },
+    { "key": "password", "value": "" },
+    { "key": "sourceAccountId", "value": "" },
+    { "key": "receiverIban", "value": "" },
+    { "key": "transferAmount", "value": "125.00" },
+    { "key": "transferId", "value": "" },
+    { "key": "idempotencyKey", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code >= 400) {",
+          "  pm.test('Error response uses the standard error envelope', function () {",
+          "    const body = pm.response.json();",
+          "    pm.expect(body).to.have.property('error');",
+          "    pm.expect(body.error.code).to.be.a('string').and.not.empty;",
+          "    pm.expect(body.error.message).to.be.a('string').and.not.empty;",
+          "    pm.expect(body.error.traceId).to.be.a('string').and.not.empty;",
+          "  });",
+          "} else {",
+          "  pm.test('Successful response uses the standard API envelope', function () {",
+          "    pm.expect(pm.response.code).to.be.within(200, 299);",
+          "    pm.expect(pm.response.json()).to.have.property('data');",
+          "  });",
+          "}"
+        ]
+      }
+    }
   ],
   "item": [
+    {
+      "name": "Demo session",
+      "description": "Create a local demo JWT. The included environment defaults to demo-customer.",
+      "item": [
+        {
+          "name": "Create demo session",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": "{{baseUrl}}/demo/session"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Demo session is created', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.data.customerId).to.eql(pm.environment.get('customerId'));",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('accessToken', body.data.accessToken);",
+                  "  pm.environment.set('customerName', body.data.customerName);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid demo login (expected 401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"password\": \"invalid-password\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": "{{baseUrl}}/demo/session"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid credentials return the standard 401 error', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('INVALID_CREDENTIALS');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Accounts",
       "item": [
@@ -31,14 +136,49 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/accounts"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Accounts are returned and source account is saved', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const accounts = pm.response.json().data;",
+                  "  pm.expect(accounts).to.be.an('array').that.is.not.empty;",
+                  "  const account = accounts.find(item => item.currency === 'TRY' && item.status === 'ACTIVE');",
+                  "  pm.expect(account, 'active TRY account').to.exist;",
+                  "  pm.environment.set('sourceAccountId', account.id);",
+                  "  pm.environment.set('sourceIban', account.iban);",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get transfer limits",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/accounts/transfer-limits"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transfer limits are returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.have.property('perTransferMaximum');",
+                  "  pm.expect(pm.response.json().data).to.have.property('dailyRemaining');",
+                  "  pm.expect(pm.response.json().data).to.have.property('monthlyRemaining');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -46,69 +186,192 @@
       "name": "Transfers",
       "item": [
         {
-          "name": "Create transfer (success template)",
+          "name": "Create transfer",
+          "description": "Creates a real synthetic transfer. A new Idempotency-Key is generated for each send; use Replay transfer to verify idempotency.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transfer is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  const transfer = pm.response.json().data;",
+                  "  pm.expect(transfer.status).to.eql('COMPLETED');",
+                  "  pm.expect(transfer.amount).to.eql(pm.environment.get('transferAmount'));",
+                  "  pm.environment.set('transferId', transfer.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
               { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"125.00\",\n  \"description\": \"Synthetic test transfer\"\n}"
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"{{transferAmount}}\",\n  \"description\": \"Postman case study test transfer\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
             },
             "url": "{{baseUrl}}/transfers"
           }
+        },
+        {
+          "name": "Replay transfer (same idempotency key)",
+          "description": "Send the exact same request body and key again. The API should return the original transfer without moving money twice.",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"{{transferAmount}}\",\n  \"description\": \"Postman case study test transfer\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": "{{baseUrl}}/transfers"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Retry returns the original transfer', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.id).to.eql(pm.environment.get('transferId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reuse idempotency key with a different body",
+          "description": "Expected 409 conflict. This request does not create another transfer.",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"126.00\",\n  \"description\": \"Changed request for idempotency test\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": "{{baseUrl}}/transfers"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Changed request with the same key is rejected', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('IDEMPOTENCY_KEY_REUSED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject zero amount",
+          "description": "Expected 400 validation error; no transfer is created.",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "postman-invalid-amount" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"0\",\n  \"description\": \"Invalid amount test\"\n}",
+              "options": {
+                "raw": { "language": "json" }
+              }
+            },
+            "url": "{{baseUrl}}/transfers"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid amount returns the standard validation error', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List all transfers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transfers?page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transfer history and pagination are returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  pm.expect(body.meta).to.have.property('totalElements');",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "List outgoing transfers",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/transfers?page=0&size=20"
+            "url": "{{baseUrl}}/transfers?direction=OUTGOING&page=0&size=20"
           }
         },
         {
-          "name": "List outgoing transfers by date",
+          "name": "List incoming transfers",
+          "description": "Switch the environment customerId/password to demo-recipient/transfer1234, create a session, then send this request to see incoming transfers.",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/transfers?page=0&size=20&startDate=2026-11-18&endDate=2026-11-19"
+            "url": "{{baseUrl}}/transfers?direction=INCOMING&page=0&size=20"
           }
         },
         {
-          "name": "Get outgoing transfer",
+          "name": "Get transfer by ID",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/transfers/{{transferId}}"
-          }
-        },
-        {
-          "name": "Validation error template",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Idempotency-Key", "value": "{{$guid}}" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"0\"\n}"
-            },
-            "url": "{{baseUrl}}/transfers"
-          }
-        },
-        {
-          "name": "Idempotency conflict template",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Idempotency-Key", "value": "reuse-a-key-with-different-body" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"receiverIban\": \"{{receiverIban}}\",\n  \"amount\": \"250.00\"\n}"
-            },
-            "url": "{{baseUrl}}/transfers"
           }
         }
       ]
@@ -126,14 +389,31 @@
       ]
     },
     {
-      "name": "Authorization error template",
-      "request": {
-        "auth": {
-          "type": "noauth"
-        },
-        "method": "GET",
-        "url": "{{baseUrl}}/accounts"
-      }
+      "name": "Authorization",
+      "item": [
+        {
+          "name": "Unauthenticated request (expected 401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unauthenticated request returns the standard error', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('UNAUTHENTICATED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
