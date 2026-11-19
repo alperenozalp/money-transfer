@@ -69,6 +69,31 @@ Transfer integrity is enforced at the database and service layers:
 
 Default limits are 50,000 TRY per transfer, 100,000 TRY daily, and 500,000 TRY monthly. They can be changed with `TRANSFER_LIMITS_PER_TRANSFER`, `TRANSFER_LIMITS_DAILY`, and `TRANSFER_LIMITS_MONTHLY`. The default business timezone is `Europe/Istanbul`; set `BUSINESS_TIME_ZONE` to change it.
 
+## API response format
+
+Successful endpoints use a shared `ApiResponse` envelope. `data` contains the endpoint result, and `meta` contains paging details when relevant:
+
+```json
+{
+  "data": {},
+  "meta": {}
+}
+```
+
+Errors use a shared `ApiErrorResponse` envelope with a stable code, a safe human-readable message, and a trace ID:
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "The request is invalid.",
+    "traceId": "request-trace-id"
+  }
+}
+```
+
+The `X-Trace-Id` response header carries the same ID as `error.traceId`. The backend generates a trace ID when the request does not provide a valid one.
+
 ## Local authentication, protections, and assumptions
 
 The case-study demo does not depend on an external identity provider. The local profile therefore provides a small customer-ID/password login that issues a short-lived JWT. This lets a new user exercise the same authenticated, customer-scoped API without first registering an identity-provider account.

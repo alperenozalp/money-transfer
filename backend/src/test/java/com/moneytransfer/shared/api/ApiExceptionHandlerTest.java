@@ -1,5 +1,8 @@
 package com.moneytransfer.shared.api;
 
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moneytransfer.shared.filter.TraceIdFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +28,7 @@ class ApiExceptionHandlerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new FailureController())
-                .setControllerAdvice(new ApiExceptionHandler())
+                .setControllerAdvice(new ApiExceptionHandler(new ObjectMapper()))
                 .addFilters(new TraceIdFilter())
                 .build();
     }
@@ -45,8 +48,8 @@ class ApiExceptionHandlerTest {
         mockMvc.perform(get("/test/not-found").header("X-Trace-Id", "response-status-test"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
-                .andExpect(jsonPath("$.error.code").value("REQUEST_REJECTED"))
-                .andExpect(jsonPath("$.error.message").value("The request could not be completed."))
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.error.message").value("The requested resource was not found."))
                 .andExpect(jsonPath("$.error.message").value(
                         org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("internal detail"))))
                 .andExpect(jsonPath("$.error.traceId").value("response-status-test"));
@@ -77,6 +80,19 @@ class ApiExceptionHandlerTest {
                 .andExpect(jsonPath("$.error.traceId").value("unsupported-media-type-test"));
     }
 
+    @Test
+    void unacceptableResponseTypesReturnTheStandardErrorEnvelope() throws Exception {
+        mockMvc.perform(get("/test/json-response")
+                        .accept(MediaType.TEXT_PLAIN)
+                        .header("X-Trace-Id", "not-acceptable-test"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.error.code").value("NOT_ACCEPTABLE"))
+                .andExpect(jsonPath("$.error.message")
+                        .value("The requested response format is not supported."))
+                .andExpect(jsonPath("$.error.traceId").value("not-acceptable-test"));
+    }
+
     @RestController
     private static class FailureController {
 
@@ -92,6 +108,11 @@ class ApiExceptionHandlerTest {
 
         @PostMapping(path = "/test/json-only", consumes = MediaType.APPLICATION_JSON_VALUE)
         void jsonOnly() {
+        }
+
+        @GetMapping(path = "/test/json-response", produces = MediaType.APPLICATION_JSON_VALUE)
+        Map<String, Boolean> jsonResponse() {
+            return Map.of("ok", true);
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.moneytransfer.shared.api;
 
+import java.io.IOException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moneytransfer.customer.exception.CustomerNotProvisionedException;
 import com.moneytransfer.security.local.InvalidDemoCredentialsException;
 import com.moneytransfer.shared.filter.TraceIdFilter;
@@ -9,8 +12,10 @@ import com.moneytransfer.transfer.exception.TransferNotFoundException;
 import com.moneytransfer.transfer.exception.TransferRuleException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -18,16 +23,23 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.ErrorResponse;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    private final ObjectMapper objectMapper;
+
+    public ApiExceptionHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @ExceptionHandler(InvalidDemoCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidDemoCredentials(
@@ -111,28 +123,86 @@ public class ApiExceptionHandler {
                 request);
     }
 
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public void handleNotAcceptable(
+            HttpMediaTypeNotAcceptableException exception,
+            HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.NOT_ACCEPTABLE.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        objectMapper.writeValue(
+                response.getOutputStream(),
+                ApiErrorResponse.of(
+                        "NOT_ACCEPTABLE",
+                        "The requested response format is not supported.",
+                        TraceIdFilter.getTraceId(request)));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatus(
             ResponseStatusException exception,
             HttpServletRequest request) {
-        HttpStatusCode status = exception.getStatusCode();
-        if (status.is5xxServerError()) {
-            LOGGER.error("Request failed with an HTTP server error.", exception);
-            return error(status, "INTERNAL_SERVER_ERROR", "An unexpected error occurred.", request);
-        }
-        return error(status, "REQUEST_REJECTED", "The request could not be completed.", request);
+        return handleFrameworkError(exception, exception.getStatusCode(), request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(
             Exception exception,
             HttpServletRequest request) {
+        if (exception instanceof ErrorResponse errorResponse) {
+                return handleFrameworkError(exception, errorResponse.getStatusCode(), request);
+        }
         LOGGER.error("Unhandled API exception.", exception);
         return error(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_SERVER_ERROR",
                 "An unexpected error occurred.",
                 request);
+    }
+
+    private ResponseEntity<ApiErrorResponse> handleFrameworkError(
+            Exception exception,
+            HttpStatusCode status,
+            HttpServletRequest request) {
+        if (status.is5xxServerError()) {
+            LOGGER.error("Request failed with an HTTP server error. Status: {}", status.value(), exception);
+            return error(status, "INTERNAL_SERVER_ERROR", "An unexpected error occurred.", request);
+        }
+        return switch (status.value()) {
+            case 400 -> error(status, "INVALID_REQUEST", "The request is invalid.", request);
+            case 401 -> error(status, "UNAUTHENTICATED", "Authentication is required.", request);
+            case 403 -> error(
+                    status,
+                    "FORBIDDEN",
+                    "You are not allowed to access this resource.",
+                    request);
+            case 404 -> error(status, "NOT_FOUND", "The requested resource was not found.", request);
+            case 405 -> error(
+                    status,
+                    "METHOD_NOT_ALLOWED",
+                    "The HTTP method is not supported for this endpoint.",
+                    request);
+            case 406 -> error(
+                    status,
+                    "NOT_ACCEPTABLE",
+                    "The requested response format is not supported.",
+                    request);
+            case 408 -> error(status, "REQUEST_TIMEOUT", "The request timed out.", request);
+            case 409 -> error(
+                    status,
+                    "CONFLICT",
+                    "The request conflicts with the current resource state.",
+                    request);
+            case 413 -> error(status, "PAYLOAD_TOO_LARGE", "The request payload is too large.", request);
+            case 415 -> error(
+                    status,
+                    "UNSUPPORTED_MEDIA_TYPE",
+                    "The request content type is not supported.",
+                    request);
+            case 422 -> error(status, "UNPROCESSABLE_ENTITY", "The request could not be processed.", request);
+            case 429 -> error(status, "TOO_MANY_REQUESTS", "Too many requests.", request);
+            default -> error(status, "REQUEST_REJECTED", "The request could not be completed.", request);
+        };
     }
 
     private ResponseEntity<ApiErrorResponse> error(
