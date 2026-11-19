@@ -189,6 +189,12 @@ p {
   gap: 5px;
 }
 
+.account-row > div strong {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
 .account-row span {
   color: var(--muted);
   font-size: 11px;
@@ -337,6 +343,19 @@ td {
   display: flex;
   align-items: flex-end;
   gap: 10px;
+}
+
+.history-direction-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.history-direction-filter .history-filter-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .date-filters label {

@@ -8,7 +8,9 @@ import com.moneytransfer.transfer.model.TransferStatus;
 public record TransferResponse(
         UUID id,
         UUID sourceAccountId,
+        String sourceIban,
         String receiverIban,
+        TransferDirection direction,
         String amount,
         String currency,
         String description,

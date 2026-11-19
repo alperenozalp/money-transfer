@@ -24,7 +24,9 @@ describe('API client', () => {
     const transfer = {
       id: 'transfer-id',
       sourceAccountId: 'source-id',
+      sourceIban: 'TR0000000000000000000000001',
       receiverIban: 'TR0000000000000000000000002',
+      direction: 'OUTGOING' as const,
       amount: '125.00',
       currency: 'TRY',
       status: 'COMPLETED' as const,
@@ -62,9 +64,11 @@ describe('API client', () => {
       size: 10,
       startDate: '2026-11-01',
       endDate: '2026-11-30',
+      direction: 'INCOMING',
     })).resolves.toMatchObject({ transfers: [], meta: { totalElements: 0 } })
     expect(String(fetchMock.mock.calls[0][0])).toContain('startDate=2026-11-01')
     expect(String(fetchMock.mock.calls[0][0])).toContain('endDate=2026-11-30')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('direction=INCOMING')
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: [], meta: {} }))
     await expect(getTransfers('access-token', { page: 0, size: 10 }))

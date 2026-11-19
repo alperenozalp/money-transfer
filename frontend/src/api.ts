@@ -21,13 +21,17 @@ export interface TransferLimits {
 export interface Transfer {
   id: string
   sourceAccountId: string
+  sourceIban: string
   receiverIban: string
+  direction: 'INCOMING' | 'OUTGOING'
   amount: string
   currency: string
   description?: string
   status: 'COMPLETED'
   createdAt: string
 }
+
+export type TransferDirection = 'INCOMING' | 'OUTGOING'
 
 export interface MonthlyTransferStatistic {
   month: string
@@ -126,11 +130,18 @@ export async function getTransferLimits(accessToken: string): Promise<TransferLi
 
 export async function getTransfers(
   accessToken: string,
-  filters: { page: number; size: number; startDate?: string; endDate?: string },
+  filters: {
+    page: number
+    size: number
+    startDate?: string
+    endDate?: string
+    direction?: TransferDirection
+  },
 ): Promise<{ transfers: Transfer[]; meta: TransferPageMeta }> {
   const query = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
   if (filters.startDate) query.set('startDate', filters.startDate)
   if (filters.endDate) query.set('endDate', filters.endDate)
+  if (filters.direction) query.set('direction', filters.direction)
   const response = await request<Transfer[]>(`/api/v1/transfers?${query}`, accessToken)
   if (!isTransferPageMeta(response.meta)) {
     throw new Error('The transfer list response did not contain valid pagination metadata.')

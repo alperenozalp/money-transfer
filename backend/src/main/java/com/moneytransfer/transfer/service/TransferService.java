@@ -27,6 +27,7 @@ import com.moneytransfer.customer.exception.CustomerNotProvisionedException;
 import com.moneytransfer.customer.model.Customer;
 import com.moneytransfer.customer.repository.CustomerRepository;
 import com.moneytransfer.transfer.dto.CreateTransferRequest;
+import com.moneytransfer.transfer.dto.TransferDirection;
 import com.moneytransfer.transfer.dto.TransferResponse;
 import com.moneytransfer.transfer.exception.IdempotencyConflictException;
 import com.moneytransfer.transfer.exception.InvalidTransferQueryException;
@@ -38,6 +39,8 @@ import com.moneytransfer.transfer.model.Transfer;
 import com.moneytransfer.transfer.model.TransferStatus;
 import com.moneytransfer.transfer.repository.LedgerEntryRepository;
 import com.moneytransfer.transfer.repository.TransferRepository;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -93,7 +96,7 @@ public class TransferService {
             if (!existing.getRequestFingerprint().equals(fingerprint)) {
                 throw new IdempotencyConflictException();
             }
-            return new CreationResult(toResponse(existing), true);
+            return new CreationResult(toResponse(existing, TransferDirection.OUTGOING), true);
         }
 
         Account requestedSource = accountRepository
@@ -144,12 +147,13 @@ public class TransferService {
                 new LedgerEntry(transfer, source, LedgerDirection.DEBIT, request.amount(), now),
                 new LedgerEntry(transfer, destination, LedgerDirection.CREDIT, request.amount(), now)));
 
-        return new CreationResult(toResponse(transfer), false);
+        return new CreationResult(toResponse(transfer, TransferDirection.OUTGOING), false);
     }
 
     @Transactional(readOnly = true)
-    public Page<TransferResponse> listOutgoing(
+    public Page<TransferResponse> listForCustomer(
             String identitySubject,
+            TransferDirection direction,
             LocalDate startDate,
             LocalDate endDate,
             int page,
@@ -169,8 +173,21 @@ public class TransferService {
 
         Specification<Transfer> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(root.get("sender").get("id"), sender.getId()));
             predicates.add(criteriaBuilder.isNotNull(root.get("sourceAccount")));
+            predicates.add(criteriaBuilder.isNotNull(root.get("destinationAccount")));
+            Join<Transfer, Account> destination = root.join("destinationAccount", JoinType.LEFT);
+            Join<Account, Customer> destinationCustomer = destination.join("customer", JoinType.LEFT);
+            Predicate outgoing = criteriaBuilder.equal(root.get("sender").get("id"), sender.getId());
+            Predicate incoming = criteriaBuilder.and(
+                    criteriaBuilder.equal(destinationCustomer.get("id"), sender.getId()),
+                    criteriaBuilder.notEqual(root.get("sender").get("id"), sender.getId()));
+            if (direction == TransferDirection.OUTGOING) {
+                predicates.add(outgoing);
+            } else if (direction == TransferDirection.INCOMING) {
+                predicates.add(incoming);
+            } else {
+                predicates.add(criteriaBuilder.or(outgoing, incoming));
+            }
             if (start != null) {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.<Instant>get("createdAt"), start));
             }
@@ -186,17 +203,23 @@ public class TransferService {
                                 page,
                                 Math.min(requestedSize, MAX_PAGE_SIZE),
                                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))))
-                .map(this::toResponse);
+                .map(transfer -> toResponse(
+                        transfer,
+                        transfer.getSender().getId().equals(sender.getId())
+                                ? TransferDirection.OUTGOING
+                                : TransferDirection.INCOMING));
     }
 
     @Transactional(readOnly = true)
-    public TransferResponse getOutgoing(String identitySubject, UUID transferId) {
-        Customer sender = customerRepository.findByIdentitySubject(identitySubject)
+    public TransferResponse getForCustomer(String identitySubject, UUID transferId) {
+        Customer customer = customerRepository.findByIdentitySubject(identitySubject)
                 .orElseThrow(CustomerNotProvisionedException::new);
-        Transfer transfer = transferRepository.findBySender_IdAndIdAndSourceAccountIsNotNull(
-                        sender.getId(), transferId)
+        Transfer transfer = transferRepository.findAccessibleToCustomer(transferId, customer.getId())
                 .orElseThrow(TransferNotFoundException::new);
-        return toResponse(transfer);
+        TransferDirection direction = transfer.getSender().getId().equals(customer.getId())
+                ? TransferDirection.OUTGOING
+                : TransferDirection.INCOMING;
+        return toResponse(transfer, direction);
     }
 
     private ZoneId transferLimitServiceZone() {
@@ -280,11 +303,13 @@ public class TransferService {
         return value.length() + ":" + value;
     }
 
-    private TransferResponse toResponse(Transfer transfer) {
+    private TransferResponse toResponse(Transfer transfer, TransferDirection direction) {
         return new TransferResponse(
                 transfer.getId(),
                 transfer.getSourceAccount().getId(),
+                transfer.getSourceAccount().getIban(),
                 transfer.getDestinationAccount().getIban(),
+                direction,
                 transfer.getAmount().setScale(2, RoundingMode.UNNECESSARY).toPlainString(),
                 transfer.getCurrency(),
                 transfer.getDescription(),

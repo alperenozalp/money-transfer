@@ -142,7 +142,7 @@ class TransferApiIT {
     }
 
     @Test
-    void transferHistoryIsOutgoingCustomerScopedAndUsesInclusiveBusinessDates() throws Exception {
+    void transferHistoryIncludesIncomingAndOutgoingTransfersAndUsesInclusiveBusinessDates() throws Exception {
         Fixture fixture = fixture();
         String response = mockMvc.perform(post("/api/v1/transfers")
                         .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT)))
@@ -157,11 +157,41 @@ class TransferApiIT {
 
         mockMvc.perform(get("/api/v1/transfers")
                         .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT)))
+                        .param("direction", "OUTGOING")
                         .param("startDate", "2026-11-19")
                         .param("endDate", "2026-11-19"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].direction").value("OUTGOING"))
+                .andExpect(jsonPath("$.data[0].sourceIban").value(SENDER_IBAN))
+                .andExpect(jsonPath("$.data[0].receiverIban").value(RECEIVER_IBAN))
                 .andExpect(jsonPath("$.meta.totalElements").value(1));
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .with(jwt().jwt(token -> token.subject(BOB_SUBJECT)))
+                        .param("direction", "INCOMING")
+                        .param("startDate", "2026-11-19")
+                        .param("endDate", "2026-11-19"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].direction").value("INCOMING"))
+                .andExpect(jsonPath("$.data[0].sourceIban").value(SENDER_IBAN))
+                .andExpect(jsonPath("$.data[0].receiverIban").value(RECEIVER_IBAN))
+                .andExpect(jsonPath("$.data[0].amount").value("10.00"));
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT)))
+                        .param("direction", "INCOMING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0))
+                .andExpect(jsonPath("$.meta.totalElements").value(0));
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .with(jwt().jwt(token -> token.subject(BOB_SUBJECT)))
+                        .param("direction", "OUTGOING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0))
+                .andExpect(jsonPath("$.meta.totalElements").value(0));
 
         mockMvc.perform(get("/api/v1/transfers")
                         .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT)))
@@ -182,13 +212,19 @@ class TransferApiIT {
 
         mockMvc.perform(get("/api/v1/transfers/" + transferId)
                         .with(jwt().jwt(token -> token.subject(BOB_SUBJECT))))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("TRANSFER_NOT_FOUND"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.direction").value("INCOMING"));
 
         mockMvc.perform(get("/api/v1/transfers/" + transferId)
                         .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(transferId));
+
+        customerRepository.saveAndFlush(new Customer("oidc-subject-charlie"));
+        mockMvc.perform(get("/api/v1/transfers/" + transferId)
+                        .with(jwt().jwt(token -> token.subject("oidc-subject-charlie"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("TRANSFER_NOT_FOUND"));
 
         mockMvc.perform(get("/api/v1/transfers")
                         .with(jwt().jwt(token -> token.subject(ALICE_SUBJECT)))

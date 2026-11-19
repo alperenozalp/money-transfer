@@ -10,6 +10,7 @@ import {
   type Account,
   type MonthlyTransferStatistic,
   type Transfer,
+  type TransferDirection,
   type TransferLimits,
   type TransferPageMeta,
 } from './api'
@@ -58,6 +59,7 @@ export function App() {
     totalPages: 0,
   })
   const [page, setPage] = useState(0)
+  const [historyDirection, setHistoryDirection] = useState<TransferDirection | 'ALL'>('ALL')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [summaryLoading, setSummaryLoading] = useState(true)
@@ -140,6 +142,7 @@ export function App() {
       const result = await getTransfers(accessToken, {
         page,
         size: PAGE_SIZE,
+        direction: historyDirection === 'ALL' ? undefined : historyDirection,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       })
@@ -150,7 +153,7 @@ export function App() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [accessToken, endDate, page, startDate])
+  }, [accessToken, endDate, historyDirection, page, startDate])
 
   useEffect(() => {
     void refreshSummary()
@@ -349,7 +352,7 @@ export function App() {
                     {accounts.map((account) => (
                       <article className="account-row" key={account.id}>
                         <div>
-                          <strong>{maskIban(account.iban)}</strong>
+                          <strong>{account.iban}</strong>
                           <span>{account.currency} · {account.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}</span>
                         </div>
                         <strong>{formatMoney(account.balance, account.currency)}</strong>
@@ -475,6 +478,26 @@ export function App() {
               )}
             </div>
           </div>
+          <div className="history-direction-filter" role="group" aria-label="Transfer türü">
+            {([
+              ['ALL', 'Tümü'],
+              ['OUTGOING', 'Gönderilen'],
+              ['INCOMING', 'Gelen'],
+            ] as const).map(([direction, label]) => (
+              <button
+                type="button"
+                key={direction}
+                className={`button-secondary${historyDirection === direction ? ' history-filter-active' : ''}`}
+                aria-pressed={historyDirection === direction}
+                onClick={() => {
+                  setHistoryDirection(direction)
+                  setPage(0)
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {historyError && <p className="error-message" role="alert">{historyError}</p>}
           <TransferRows transfers={transfers} loading={historyLoading} onSelect={(id) => void showTransfer(id)} />
           <div className="pagination">
@@ -513,7 +536,9 @@ export function App() {
             {detailError ? <p className="error-message">{detailError}</p> : selectedTransfer && (
               <dl className="detail-list">
                 <dt>Tutar</dt><dd>{formatMoney(selectedTransfer.amount, selectedTransfer.currency)}</dd>
-                <dt>Alıcı</dt><dd>{maskIban(selectedTransfer.receiverIban)}</dd>
+                <dt>Yön</dt><dd>{selectedTransfer.direction === 'INCOMING' ? 'Gelen' : 'Gönderilen'}</dd>
+                <dt>Gönderen IBAN</dt><dd>{maskIban(selectedTransfer.sourceIban)}</dd>
+                <dt>Alıcı IBAN</dt><dd>{maskIban(selectedTransfer.receiverIban)}</dd>
                 <dt>Açıklama</dt><dd>{selectedTransfer.description || '—'}</dd>
                 <dt>Tarih</dt><dd>{formatDate(selectedTransfer.createdAt)}</dd>
                 <dt>Durum</dt><dd>Tamamlandı</dd>
@@ -552,15 +577,21 @@ function TransferRows({
     <div className="table-scroll">
       <table>
         <thead>
-          <tr><th>Alıcı</th><th>Açıklama</th><th>Tarih</th><th>Tutar</th><th>Durum</th></tr>
+          <tr><th>Yön</th><th>Karşı taraf</th><th>Açıklama</th><th>Tarih</th><th>Tutar</th><th>Detay</th></tr>
         </thead>
         <tbody>
           {transfers.map((transfer) => (
             <tr key={transfer.id}>
-              <td>{maskIban(transfer.receiverIban)}</td>
+              <td>{transfer.direction === 'INCOMING' ? 'Gelen' : 'Gönderilen'}</td>
+              <td>{maskIban(
+                transfer.direction === 'INCOMING' ? transfer.sourceIban : transfer.receiverIban,
+              )}</td>
               <td>{transfer.description || '—'}</td>
               <td>{formatDate(transfer.createdAt)}</td>
-              <td>{formatMoney(transfer.amount, transfer.currency)}</td>
+              <td>
+                {transfer.direction === 'INCOMING' ? '+' : '−'}
+                {formatMoney(transfer.amount, transfer.currency)}
+              </td>
               <td>
                 <button type="button" className="text-button" onClick={() => onSelect(transfer.id)}>
                   Detay

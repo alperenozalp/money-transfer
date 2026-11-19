@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.moneytransfer.shared.api.ApiResponse;
 import com.moneytransfer.transfer.dto.CreateTransferRequest;
+import com.moneytransfer.transfer.dto.TransferDirection;
 import com.moneytransfer.transfer.dto.TransferResponse;
 import com.moneytransfer.transfer.service.TransferService;
 import jakarta.validation.Valid;
@@ -53,12 +54,13 @@ public class TransferController {
     @GetMapping
     public ApiResponse<List<TransferResponse>> list(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) TransferDirection direction,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Page<TransferResponse> result =
-                transferService.listOutgoing(jwt.getSubject(), startDate, endDate, page, size);
+                transferService.listForCustomer(jwt.getSubject(), direction, startDate, endDate, page, size);
         return new ApiResponse<>(
                 result.getContent(),
                 Map.of(
@@ -72,6 +74,6 @@ public class TransferController {
     public ApiResponse<TransferResponse> get(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID transferId) {
-        return new ApiResponse<>(transferService.getOutgoing(jwt.getSubject(), transferId));
+        return new ApiResponse<>(transferService.getForCustomer(jwt.getSubject(), transferId));
     }
 }
