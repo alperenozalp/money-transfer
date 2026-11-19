@@ -76,7 +76,7 @@ export function App() {
   const accessToken = user?.access_token ?? ''
   const customerName = useMemo(() => {
     const name = user?.profile.name
-    return typeof name === 'string' && name.trim() ? name : 'Hesabım'
+    return typeof name === 'string' && name.trim() ? name : 'My account'
   }, [user])
   const totalBalance = useMemo(() => {
     const cents = accounts
@@ -95,7 +95,7 @@ export function App() {
         const currentUser = isAuthCallback ? await finishSignIn() : await getCurrentUser()
         if (active) setUser(currentUser)
       } catch {
-        if (active) setAuthError('Giriş tamamlanamadı. Lütfen yeniden deneyin.')
+        if (active) setAuthError('Sign-in could not be completed. Please try again.')
       } finally {
         if (isAuthCallback) window.history.replaceState({}, document.title, '/')
         if (active) setAuthReady(true)
@@ -174,7 +174,7 @@ export function App() {
     } catch (error) {
       setAuthError(isDemoAuthEnabled && error instanceof Error
         ? error.message
-        : 'Kimlik sağlayıcısına bağlanılamadı. OIDC ayarlarınızı kontrol edin.')
+        : 'Could not connect to the identity provider. Check your OIDC settings.')
     }
   }
 
@@ -185,7 +185,7 @@ export function App() {
     } catch {
       await clearSessionUser()
       setUser(null)
-      setAuthError('Oturum kapatılamadı. Lütfen tarayıcı oturumunu kapatıp yeniden deneyin.')
+      setAuthError('Could not sign out. Close the browser session and try again.')
     }
   }
 
@@ -210,7 +210,7 @@ export function App() {
       })
       clearPendingTransferKey()
       setForm(EMPTY_FORM)
-      setFormSuccess(`Transfer tamamlandı. İşlem numarası: ${result.id}`)
+      setFormSuccess(`Transfer completed. Transaction ID: ${result.id}`)
       setPage(0)
       await refreshSummary()
       await refreshHistory()
@@ -233,7 +233,7 @@ export function App() {
   }
 
   if (!authReady) {
-    return <main className="center-message">Güvenli oturum kontrol ediliyor…</main>
+    return <main className="center-message">Checking secure session…</main>
   }
 
   if (!user?.access_token) {
@@ -241,11 +241,11 @@ export function App() {
       <main className="signin-page">
         <section className="signin-card">
           <h1>Money Transfer</h1>
-          <p>Hesap ve transferlerinizi görüntülemek için giriş yapın.</p>
+          <p>Sign in to view your accounts and transfers.</p>
           {!isAuthenticationEnabled && (
             <p className="notice">
-              Giriş için <code>OIDC_ISSUER_URI</code> ve <code>OIDC_CLIENT_ID</code> değerlerini
-              <code> .env</code> dosyasında yapılandırın.
+              Configure <code>OIDC_ISSUER_URI</code> and <code>OIDC_CLIENT_ID</code> in your
+              <code> .env</code> file to sign in.
             </p>
           )}
           {authError && <p className="error-message" role="alert">{authError}</p>}
@@ -258,7 +258,7 @@ export function App() {
               }}
             >
               <label htmlFor="demo-customer-id">
-                Müşteri ID
+                Customer ID
                 <input
                   id="demo-customer-id"
                   autoComplete="username"
@@ -268,7 +268,7 @@ export function App() {
                 />
               </label>
               <label htmlFor="demo-password">
-                Şifre
+                Password
                 <input
                   id="demo-password"
                   type="password"
@@ -278,11 +278,11 @@ export function App() {
                   required
                 />
               </label>
-              <button type="submit">Giriş yap</button>
+              <button type="submit">Sign in</button>
             </form>
           ) : (
             <button type="button" onClick={() => void handleSignIn()} disabled={!isAuthenticationEnabled}>
-              OIDC ile giriş yap
+              Sign in with OIDC
             </button>
           )}
         </section>
@@ -297,44 +297,44 @@ export function App() {
         <div className="user-actions">
           <span>{customerName}</span>
           <button type="button" className="button-secondary" onClick={() => void handleSignOut()}>
-            Çıkış
+            Sign out
           </button>
         </div>
       </header>
 
-      <nav className="tabs" aria-label="Sayfalar">
+      <nav className="tabs" aria-label="Pages">
         <button
           type="button"
           className={view === 'accounts' ? 'tab-active' : ''}
           onClick={() => setView('accounts')}
         >
-          Hesaplar
+          Accounts
         </button>
         <button
           type="button"
           className={view === 'transfers' ? 'tab-active' : ''}
           onClick={() => setView('transfers')}
         >
-          Transferler
+          Transfers
         </button>
       </nav>
 
       {summaryError && (
         <div className="error-message" role="alert">
-          {summaryError} <button type="button" onClick={() => void refreshSummary()}>Yeniden dene</button>
+          {summaryError} <button type="button" onClick={() => void refreshSummary()}>Retry</button>
         </div>
       )}
 
       {view === 'accounts' ? (
         <>
-          <section className="summary-grid" aria-label="Özet">
+          <section className="summary-grid" aria-label="Summary">
             <SummaryCard title="Toplam TRY bakiyesi" value={summaryLoading ? '—' : formatMoney(totalBalance)} />
             <SummaryCard
-              title="Günlük kalan limit"
+              title="Daily limit remaining"
               value={summaryLoading ? '—' : formatMoney(limits?.dailyRemaining ?? '0.00')}
             />
             <SummaryCard
-              title="Aylık kalan limit"
+              title="Monthly limit remaining"
               value={summaryLoading ? '—' : formatMoney(limits?.monthlyRemaining ?? '0.00')}
             />
           </section>
@@ -342,18 +342,18 @@ export function App() {
           <div className="dashboard-grid">
             <div className="main-column">
               <section className="panel">
-                <h2>Hesaplarım</h2>
+                <h2>My accounts</h2>
                 {summaryLoading ? (
-                  <p className="muted">Hesaplar yükleniyor…</p>
+                  <p className="muted">Loading accounts…</p>
                 ) : accounts.length === 0 ? (
-                  <p className="muted">Görüntülenecek hesap bulunamadı.</p>
+                  <p className="muted">No accounts to display.</p>
                 ) : (
                   <div className="account-list">
                     {accounts.map((account) => (
                       <article className="account-row" key={account.id}>
                         <div>
                           <strong>{account.iban}</strong>
-                          <span>{account.currency} · {account.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}</span>
+                          <span>{account.currency} · {account.status === 'ACTIVE' ? 'Active' : 'Inactive'}</span>
                         </div>
                         <strong>{formatMoney(account.balance, account.currency)}</strong>
                       </article>
@@ -363,14 +363,14 @@ export function App() {
               </section>
 
               <section className="panel">
-                <h2>Aylık transfer özeti</h2>
+                <h2>Monthly transfer summary</h2>
                 {summaryLoading ? (
-                  <p className="muted">İstatistikler yükleniyor…</p>
+                  <p className="muted">Loading statistics…</p>
                 ) : (
                   <div className="table-scroll">
                     <table>
                       <thead>
-                        <tr><th>Ay</th><th>Transfer sayısı</th><th>Toplam tutar</th></tr>
+                        <tr><th>Month</th><th>Transfer count</th><th>Total amount</th></tr>
                       </thead>
                       <tbody>
                         {statistics.map((item) => (
@@ -388,23 +388,23 @@ export function App() {
             </div>
 
             <section className="panel">
-              <h2>Yeni transfer</h2>
+              <h2>New transfer</h2>
               <form className="transfer-form" onSubmit={(event) => void handleCreateTransfer(event)}>
                 <label>
-                  Kaynak hesap
+                  Source account
                   <select
                     value={form.sourceAccountId}
                     onChange={(event) => setForm({ ...form, sourceAccountId: event.target.value })}
                     disabled={activeAccounts.length === 0 || submitting}
                   >
-                    {activeAccounts.length === 0 && <option value="">Aktif TRY hesabı yok</option>}
+                    {activeAccounts.length === 0 && <option value="">No active TRY account</option>}
                     {activeAccounts.map((account) => (
                       <option value={account.id} key={account.id}>{maskIban(account.iban)}</option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Alıcı IBAN
+                  Recipient IBAN
                   <input
                     autoComplete="off"
                     maxLength={34}
@@ -415,7 +415,7 @@ export function App() {
                   />
                 </label>
                 <label>
-                  Tutar (TRY)
+                  Amount (TRY)
                   <input
                     inputMode="decimal"
                     value={form.amount}
@@ -423,22 +423,22 @@ export function App() {
                     placeholder="0.00"
                     disabled={submitting}
                   />
-                  {limits && <small>İşlem başına en fazla {formatMoney(limits.perTransferMaximum)}</small>}
+                  {limits && <small>Maximum per transfer: {formatMoney(limits.perTransferMaximum)}</small>}
                 </label>
                 <label>
-                  Açıklama <span className="muted">(isteğe bağlı)</span>
+                  Description <span className="muted">(optional)</span>
                   <input
                     maxLength={500}
                     value={form.description}
                     onChange={(event) => setForm({ ...form, description: event.target.value })}
-                    placeholder="Transfer açıklaması"
+                    placeholder="Transfer description"
                     disabled={submitting}
                   />
                 </label>
                 {formError && <p className="error-message" role="alert">{formError}</p>}
                 {formSuccess && <p className="success-message" role="status">{formSuccess}</p>}
                 <button type="submit" disabled={submitting || activeAccounts.length === 0}>
-                  {submitting ? 'Gönderiliyor…' : 'Transfer gönder'}
+                  {submitting ? 'Sending…' : 'Send transfer'}
                 </button>
               </form>
             </section>
@@ -446,8 +446,8 @@ export function App() {
 
           <section className="panel">
             <div className="section-heading">
-              <h2>Son transferler</h2>
-              <button type="button" className="text-button" onClick={() => setView('transfers')}>Tümünü gör</button>
+              <h2>Recent transfers</h2>
+              <button type="button" className="text-button" onClick={() => setView('transfers')}>View all</button>
             </div>
             <TransferRows
               transfers={transfers.slice(0, 5)}
@@ -459,13 +459,13 @@ export function App() {
       ) : (
         <section className="panel">
           <div className="history-heading">
-            <h2>Transfer geçmişi</h2>
+            <h2>Transfer history</h2>
             <div className="date-filters">
-              <label>Başlangıç <input type="date" value={startDate} onChange={(event) => {
+              <label>Start date <input type="date" value={startDate} onChange={(event) => {
                 setStartDate(event.target.value)
                 setPage(0)
               }} /></label>
-              <label>Bitiş <input type="date" value={endDate} onChange={(event) => {
+              <label>End date <input type="date" value={endDate} onChange={(event) => {
                 setEndDate(event.target.value)
                 setPage(0)
               }} /></label>
@@ -474,15 +474,15 @@ export function App() {
                   setStartDate('')
                   setEndDate('')
                   setPage(0)
-                }}>Temizle</button>
+                }}>Clear</button>
               )}
             </div>
           </div>
-          <div className="history-direction-filter" role="group" aria-label="Transfer türü">
+          <div className="history-direction-filter" role="group" aria-label="Transfer type">
             {([
-              ['ALL', 'Tümü'],
-              ['OUTGOING', 'Gönderilen'],
-              ['INCOMING', 'Gelen'],
+              ['ALL', 'All'],
+              ['OUTGOING', 'Outgoing'],
+              ['INCOMING', 'Incoming'],
             ] as const).map(([direction, label]) => (
               <button
                 type="button"
@@ -501,9 +501,11 @@ export function App() {
           {historyError && <p className="error-message" role="alert">{historyError}</p>}
           <TransferRows transfers={transfers} loading={historyLoading} onSelect={(id) => void showTransfer(id)} />
           <div className="pagination">
-            <span>{pageMeta.totalElements} transfer</span>
+            <span>
+              {pageMeta.totalElements} {pageMeta.totalElements === 1 ? 'transfer' : 'transfers'}
+            </span>
             <button type="button" className="button-secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              Önceki
+              Previous
             </button>
             <span>{pageMeta.totalPages === 0 ? 0 : page + 1} / {pageMeta.totalPages}</span>
             <button
@@ -512,7 +514,7 @@ export function App() {
               disabled={page + 1 >= pageMeta.totalPages}
               onClick={() => setPage(page + 1)}
             >
-              Sonraki
+              Next
             </button>
           </div>
         </section>
@@ -527,22 +529,22 @@ export function App() {
         }}>
           <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-detail-title">
             <div className="section-heading">
-              <h2 id="transfer-detail-title">Transfer detayı</h2>
+              <h2 id="transfer-detail-title">Transfer details</h2>
               <button type="button" className="button-secondary" onClick={() => {
                 setSelectedTransfer(null)
                 setDetailError('')
-              }}>Kapat</button>
+              }}>Close</button>
             </div>
             {detailError ? <p className="error-message">{detailError}</p> : selectedTransfer && (
               <dl className="detail-list">
-                <dt>Tutar</dt><dd>{formatMoney(selectedTransfer.amount, selectedTransfer.currency)}</dd>
-                <dt>Yön</dt><dd>{selectedTransfer.direction === 'INCOMING' ? 'Gelen' : 'Gönderilen'}</dd>
-                <dt>Gönderen IBAN</dt><dd>{maskIban(selectedTransfer.sourceIban)}</dd>
-                <dt>Alıcı IBAN</dt><dd>{maskIban(selectedTransfer.receiverIban)}</dd>
-                <dt>Açıklama</dt><dd>{selectedTransfer.description || '—'}</dd>
-                <dt>Tarih</dt><dd>{formatDate(selectedTransfer.createdAt)}</dd>
-                <dt>Durum</dt><dd>Tamamlandı</dd>
-                <dt>İşlem numarası</dt><dd>{selectedTransfer.id}</dd>
+                <dt>Amount</dt><dd>{formatMoney(selectedTransfer.amount, selectedTransfer.currency)}</dd>
+                <dt>Direction</dt><dd>{selectedTransfer.direction === 'INCOMING' ? 'Incoming' : 'Outgoing'}</dd>
+                <dt>Sender IBAN</dt><dd>{maskIban(selectedTransfer.sourceIban)}</dd>
+                <dt>Recipient IBAN</dt><dd>{maskIban(selectedTransfer.receiverIban)}</dd>
+                <dt>Description</dt><dd>{selectedTransfer.description || '—'}</dd>
+                <dt>Date</dt><dd>{formatDate(selectedTransfer.createdAt)}</dd>
+                <dt>Status</dt><dd>Completed</dd>
+                <dt>Transaction ID</dt><dd>{selectedTransfer.id}</dd>
               </dl>
             )}
           </section>
@@ -570,19 +572,19 @@ function TransferRows({
   loading: boolean
   onSelect: (id: string) => void
 }) {
-  if (loading) return <p className="muted">Transferler yükleniyor…</p>
-  if (transfers.length === 0) return <p className="muted">Transfer bulunamadı.</p>
+  if (loading) return <p className="muted">Loading transfers…</p>
+  if (transfers.length === 0) return <p className="muted">No transfers found.</p>
 
   return (
     <div className="table-scroll">
       <table>
         <thead>
-          <tr><th>Yön</th><th>Karşı taraf</th><th>Açıklama</th><th>Tarih</th><th>Tutar</th><th>Detay</th></tr>
+          <tr><th>Direction</th><th>Counterparty</th><th>Description</th><th>Date</th><th>Amount</th><th>Details</th></tr>
         </thead>
         <tbody>
           {transfers.map((transfer) => (
             <tr key={transfer.id}>
-              <td>{transfer.direction === 'INCOMING' ? 'Gelen' : 'Gönderilen'}</td>
+              <td>{transfer.direction === 'INCOMING' ? 'Incoming' : 'Outgoing'}</td>
               <td>{maskIban(
                 transfer.direction === 'INCOMING' ? transfer.sourceIban : transfer.receiverIban,
               )}</td>
@@ -594,7 +596,7 @@ function TransferRows({
               </td>
               <td>
                 <button type="button" className="text-button" onClick={() => onSelect(transfer.id)}>
-                  Detay
+                  Details
                 </button>
               </td>
             </tr>
@@ -616,26 +618,26 @@ function fromCents(value: bigint): string {
 
 function formatMonth(month: string): string {
   const [year, value] = month.split('-').map(Number)
-  return new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(new Date(year, value - 1, 1))
+  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(new Date(year, value - 1, 1))
 }
 
 function getFriendlyError(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return 'Oturum geçersiz veya süresi dolmuş. Yeniden giriş yapın.'
-    if (error.status === 403) return 'Müşteri hesabınız sisteme tanımlı değil.'
-    if (error.status === 404) return 'Transfer bulunamadı.'
-    if (error.status === 409) return 'Bu istek anahtarı farklı bir transfer için kullanılmış.'
+    if (error.status === 401) return 'Your session is invalid or has expired. Please sign in again.'
+    if (error.status === 403) return 'Your customer account is not registered.'
+    if (error.status === 404) return 'Transfer not found.'
+    if (error.status === 409) return 'This idempotency key was already used for a different transfer.'
     if (error.status === 422) {
-      if (error.code === 'INSUFFICIENT_FUNDS') return 'Kaynak hesapta yeterli bakiye yok.'
-      if (error.code.includes('LIMIT_EXCEEDED')) return 'Transfer limiti bu işlem için yeterli değil.'
-      return 'Transfer iş kuralı nedeniyle gerçekleştirilemedi.'
+      if (error.code === 'INSUFFICIENT_FUNDS') return 'The source account has insufficient funds.'
+      if (error.code.includes('LIMIT_EXCEEDED')) return 'The transfer limit does not allow this transaction.'
+      return 'The transfer could not be completed due to a business rule.'
     }
-    if (error.status === 400) return 'Girdiğiniz bilgileri kontrol edin.'
-    return 'İstek tamamlanamadı. Yeniden deneyin.'
+    if (error.status === 400) return 'Please check the information you entered.'
+    return 'The request could not be completed. Please try again.'
   }
-  if (error instanceof TypeError) return 'Sunucuya bağlanılamadı. Bağlantınızı kontrol edin.'
+  if (error instanceof TypeError) return 'Could not connect to the server. Check your connection.'
   if (error instanceof Error && error.message.includes('cryptography')) {
-    return 'Güvenli transfer anahtarı oluşturulamadı. HTTPS veya localhost üzerinden deneyin.'
+    return 'Could not create a secure transfer key. Try using HTTPS or localhost.'
   }
-  return 'Beklenmeyen bir hata oluştu.'
+  return 'An unexpected error occurred.'
 }

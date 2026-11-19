@@ -8,19 +8,19 @@ final class LocalDemoUsers {
             new DemoUser(
                     "demo-customer",
                     "demo-customer",
-                    "Demo Kullanıcısı 1",
+                    "Demo User 1",
                     "demo1234",
                     List.of(new DemoAccount("TR0000000000000000000000001", "125000.00"))),
             new DemoUser(
                     "demo-recipient",
                     "demo-recipient",
-                    "Demo Kullanıcısı 2",
+                    "Demo User 2",
                     "transfer1234",
                     List.of(new DemoAccount("TR0000000000000000000000003", "5000.00"))),
             new DemoUser(
                     "demo-customer-3",
                     "demo-customer-3",
-                    "Demo Kullanıcısı 3",
+                    "Demo User 3",
                     "money1234",
                     List.of(new DemoAccount("TR0000000000000000000000004", "40000.00"))));
 

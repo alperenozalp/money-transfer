@@ -74,7 +74,7 @@ export async function getCurrentUser(): Promise<AuthSession | null> {
 export async function signIn(credentials?: DemoCredentials): Promise<AuthSession | void> {
   if (isDemoAuthEnabled) {
     if (!credentials) {
-      throw new Error('Müşteri ID ve şifre gereklidir.')
+      throw new Error('Customer ID and password are required.')
     }
     const response = await fetch('/api/v1/demo/session', {
       method: 'POST',
@@ -85,10 +85,10 @@ export async function signIn(credentials?: DemoCredentials): Promise<AuthSession
       body: JSON.stringify(credentials),
     })
     if (response.status === 401) {
-      throw new Error('Müşteri ID veya şifre hatalı.')
+      throw new Error('Invalid customer ID or password.')
     }
     if (!response.ok) {
-      throw new Error('Demo oturumu oluşturulamadı. Backend’in çalıştığını kontrol edin.')
+      throw new Error('Could not create a demo session. Check that the backend is running.')
     }
 
     const payload = (await response.json()) as DemoTokenResponse

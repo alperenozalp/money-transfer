@@ -53,7 +53,7 @@ class LocalDemoAuthenticationIT {
                 .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.data.expiresIn").value(1800))
                 .andExpect(jsonPath("$.data.customerId").value("demo-customer"))
-                .andExpect(jsonPath("$.data.customerName").value("Demo Kullanıcısı 1"))
+                .andExpect(jsonPath("$.data.customerName").value("Demo User 1"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -73,9 +73,22 @@ class LocalDemoAuthenticationIT {
         assertCustomerCanOnlySeeOwnAccounts("demo-customer-3", "money1234", 1);
 
         mockMvc.perform(post("/api/v1/demo/session")
+                        .header("X-Trace-Id", "demo-invalid-credentials")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                         .content("{\"customerId\":\"demo-customer\",\"password\":\"wrong\"}"))
-                .andExpect(status().isUnauthorized());
+                        .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.error.message").value("Invalid customer ID or password."))
+                .andExpect(jsonPath("$.error.traceId").value("demo-invalid-credentials"));
+
+        mockMvc.perform(post("/api/v1/demo/session")
+                        .header("X-Trace-Id", "demo-invalid-request")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"customerId\":\"\",\"password\":\"demo1234\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.error.message").value("The request is invalid."))
+                .andExpect(jsonPath("$.error.traceId").value("demo-invalid-request"));
 
         mockMvc.perform(get("/api/v1/accounts"))
                 .andExpect(status().isUnauthorized())

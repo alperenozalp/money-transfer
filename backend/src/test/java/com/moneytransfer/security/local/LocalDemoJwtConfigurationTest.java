@@ -35,14 +35,14 @@ class LocalDemoJwtConfigurationTest {
         assertEquals("Bearer", response.tokenType());
         assertEquals(1800, response.expiresIn());
         assertEquals("demo-customer", response.customerId());
-        assertEquals("Demo Kullanıcısı 1", response.customerName());
+        assertEquals("Demo User 1", response.customerName());
         assertEquals("demo-customer", decodedToken.getSubject());
         assertEquals("demo-customer", decodedToken.getClaimAsString("customerId"));
         assertEquals("money-transfer-local-demo", decodedToken.getClaimAsString("iss"));
         assertEquals(now.plusSeconds(1800), decodedToken.getExpiresAt());
 
         assertThrows(
-                org.springframework.web.server.ResponseStatusException.class,
+                InvalidDemoCredentialsException.class,
                 () -> controller.createDemoSession(
                         new LocalDemoSessionController.DemoSessionRequest("demo-customer", "wrong-password")));
     }

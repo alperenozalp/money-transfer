@@ -22,8 +22,8 @@ describe('application authentication', () => {
 
     expect(await screen.findByRole('heading', { name: 'Money Transfer' })).toBeInTheDocument()
     expect(screen.getByText(/OIDC_ISSUER_URI/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /OIDC ile giriş yap/ })).toBeDisabled()
-    await waitFor(() => expect(screen.queryByText(/Güvenli oturum kontrol ediliyor/)).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Sign in with OIDC/ })).toBeDisabled()
+    await waitFor(() => expect(screen.queryByText(/Checking secure session/)).not.toBeInTheDocument())
   })
 
   it('submits the demo customer ID and password to create a session', async () => {
@@ -33,13 +33,13 @@ describe('application authentication', () => {
     const { App: DemoApp } = await import('./App')
     render(<DemoApp />)
 
-    fireEvent.change(await screen.findByLabelText('Müşteri ID'), {
+    fireEvent.change(await screen.findByLabelText('Customer ID'), {
       target: { value: 'demo-customer' },
     })
-    fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'wrong-password' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' }))
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong-password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Müşteri ID veya şifre hatalı.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid customer ID or password.')
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/demo/session',
       expect.objectContaining({
@@ -72,7 +72,7 @@ describe('application authentication', () => {
           tokenType: 'Bearer',
           expiresIn: 1800,
           customerId: 'demo-recipient',
-          customerName: 'Demo Kullanıcısı 2',
+          customerName: 'Demo User 2',
         })
       }
       if (path === '/api/v1/accounts') {
@@ -103,21 +103,21 @@ describe('application authentication', () => {
     const { App: DemoApp } = await import('./App')
     render(<DemoApp />)
 
-    fireEvent.change(await screen.findByLabelText('Müşteri ID'), {
+    fireEvent.change(await screen.findByLabelText('Customer ID'), {
       target: { value: 'demo-recipient' },
     })
-    fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'transfer1234' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' }))
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'transfer1234' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Gelen')).toBeInTheDocument()
+    expect(await screen.findByText('Incoming')).toBeInTheDocument()
     expect(screen.getByText(transfer.receiverIban)).toBeInTheDocument()
     expect(screen.getByText(/0001$/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Transferler' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Gelen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Transfers' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Incoming' }))
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('direction=INCOMING'))).toBe(true)
-    await screen.findByRole('button', { name: 'Detay' })
-    fireEvent.click(screen.getByRole('button', { name: 'Detay' }))
-    expect(await screen.findByText('Gönderen IBAN')).toBeInTheDocument()
-    expect(within(screen.getByRole('dialog')).getByText('Alıcı IBAN')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Details' })
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(await screen.findByText('Sender IBAN')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText('Recipient IBAN')).toBeInTheDocument()
   })
 })

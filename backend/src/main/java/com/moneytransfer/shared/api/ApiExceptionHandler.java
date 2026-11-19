@@ -1,6 +1,7 @@
 package com.moneytransfer.shared.api;
 
 import com.moneytransfer.customer.exception.CustomerNotProvisionedException;
+import com.moneytransfer.security.local.InvalidDemoCredentialsException;
 import com.moneytransfer.shared.filter.TraceIdFilter;
 import com.moneytransfer.transfer.exception.IdempotencyConflictException;
 import com.moneytransfer.transfer.exception.InvalidTransferQueryException;
@@ -8,7 +9,10 @@ import com.moneytransfer.transfer.exception.TransferNotFoundException;
 import com.moneytransfer.transfer.exception.TransferRuleException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,9 +20,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(InvalidDemoCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidDemoCredentials(
+            InvalidDemoCredentialsException exception,
+            HttpServletRequest request) {
+        return error(
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_CREDENTIALS",
+                "Invalid customer ID or password.",
+                request);
+    }
 
     @ExceptionHandler(CustomerNotProvisionedException.class)
     public ResponseEntity<ApiErrorResponse> handleCustomerNotProvisioned(
@@ -69,8 +87,32 @@ public class ApiExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", message, request);
     }
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
+            HttpServletRequest request) {
+        HttpStatusCode status = exception.getStatusCode();
+        if (status.is5xxServerError()) {
+            LOGGER.error("Request failed with an HTTP server error.", exception);
+            return error(status, "INTERNAL_SERVER_ERROR", "An unexpected error occurred.", request);
+        }
+        return error(status, "REQUEST_REJECTED", "The request could not be completed.", request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleUnexpected(
+            Exception exception,
+            HttpServletRequest request) {
+        LOGGER.error("Unhandled API exception.", exception);
+        return error(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_SERVER_ERROR",
+                "An unexpected error occurred.",
+                request);
+    }
+
     private ResponseEntity<ApiErrorResponse> error(
-            HttpStatus status,
+            HttpStatusCode status,
             String code,
             String message,
             HttpServletRequest request) {

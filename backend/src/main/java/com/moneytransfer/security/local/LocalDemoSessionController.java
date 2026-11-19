@@ -10,7 +10,6 @@ import com.moneytransfer.shared.api.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/demo")
@@ -48,7 +46,7 @@ public class LocalDemoSessionController {
     public ApiResponse<DemoSessionResponse> createDemoSession(@Valid @RequestBody DemoSessionRequest request) {
         EncodedDemoUser encodedUser = demoUsers.get(request.customerId());
         if (encodedUser == null || !passwordEncoder.matches(request.password(), encodedUser.passwordHash())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid customer ID or password.");
+            throw new InvalidDemoCredentialsException();
         }
 
         LocalDemoUsers.DemoUser user = encodedUser.user();

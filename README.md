@@ -1,6 +1,6 @@
 # Money Transfer
 
-Internal money-transfer case study. The backend currently implements authenticated account listing and transfer-limit reads; transfer execution and the other specified endpoints are not implemented yet.
+Internal money-transfer case study with authenticated account and transfer-limit APIs, transactional transfers, incoming/outgoing transfer history, and monthly transfer statistics.
 
 ## Selected versions
 
