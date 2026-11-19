@@ -1,56 +1,93 @@
 # Money Transfer
 
-Internal money-transfer case study with authenticated account and transfer-limit APIs, transactional transfers, incoming/outgoing transfer history, and monthly transfer statistics.
+A runnable money-transfer demo with a React UI, a Spring Boot API, and PostgreSQL. The local stack includes synthetic users, so you can start the app and try authenticated transfers without setting up an identity provider.
 
-## Selected versions
+## Start the project
 
-| Component | Version |
-| --- | --- |
-| Java | 21 |
-| Spring Boot | 3.5.16 |
-| Maven container | 3.9.9 |
-| PostgreSQL | 16 |
-| Node.js container | 24 |
-| React / React DOM | 19.3.1 |
-| Vite | 8.3.8 |
-| TypeScript | 7.0.2 |
-| Vitest | 5.1.1 |
-| React Testing Library | 16.3.3 |
-| Surefire / Failsafe | 3.6.1 |
-| JaCoCo | 0.8.13 |
-
-Spring Boot manages the versions of its Java dependencies, including JUnit 5 and Testcontainers. Frontend package versions are recorded in `frontend/package-lock.json`.
-
-## Local development with Docker
-
-Prerequisites: Docker Engine/Desktop with Docker Compose v2.
-
-In PowerShell, from the repository root:
+You need Docker Engine/Desktop with Docker Compose v2. From the repository root, run in PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The React development server is available at <http://localhost:5173>, the backend at <http://localhost:8080>, and PostgreSQL is published only on `127.0.0.1` using the port in `.env`. PostgreSQL data is kept in the `postgres_data` named volume. The local Compose stack includes three synthetic demo customers and their accounts, so no external identity provider or manual customer provisioning is needed to try the case study.
+Compose starts PostgreSQL, runs the backend with the `local` profile, applies Flyway migrations, seeds the demo customers/accounts, and starts the frontend.
 
-Stop the services and keep local database data:
+| Service | Address |
+| --- | --- |
+| Frontend | <http://localhost:5173> |
+| Backend API | <http://localhost:8080/api/v1> |
+| Backend health | <http://localhost:8080/actuator/health> |
+| PostgreSQL | `localhost:5432` |
+
+Services are bound to loopback. PostgreSQL data is stored in the `postgres_data` Docker volume and survives restarts.
+
+Stop the services without deleting data:
 
 ```powershell
 docker compose down
 ```
 
-Reset local database data (this permanently removes the Compose database volume):
+Reset the local database, including transfer history and changed balances:
 
 ```powershell
 docker compose down --volumes
 ```
 
-Do not commit `.env`; `.env.example` contains local-only placeholders and can be copied to start development.
+The reset is destructive. `.env.example` contains local-only values; do not commit your `.env` file or use these settings with real data.
 
-## Backend
+## Demo login
 
-Requires JDK 21 and Maven 3.9.9 or newer for local commands. The backend image uses a multi-stage build and runs the packaged application as a non-root user.
+Use the customer ID and password in the UI or in the Postman environment. Each demo customer has one synthetic TRY account.
+
+| Customer ID | Password | IBAN |
+| --- | --- | --- |
+| `demo-customer` | `demo1234` | `TR0000000000000000000000001` |
+| `demo-recipient` | `transfer1234` | `TR0000000000000000000000003` |
+| `demo-customer-3` | `money1234` | `TR0000000000000000000000004` |
+
+These are public demo credentials, not private or production credentials. Successful transfers update both account balances and create ledger entries.
+
+## Design and technical stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | React 19.3.1, TypeScript 7.0.2, Vite 8.3.8, Node.js 24 |
+| Backend | Java 21, Spring Boot 3.5.16, Maven 3.9.9 |
+| Database | PostgreSQL 16, Spring Data JPA, Flyway |
+| Tests | JUnit 5, Testcontainers, Vitest 5.1.1, React Testing Library 16.3.3 |
+| Local run | Docker Compose v2 |
+
+The frontend calls a customer-scoped REST API. Flyway owns schema changes; Hibernate validates the schema at startup. The API provides account and limit reads, transfer creation and history (including incoming transfers), and monthly transfer statistics.
+
+Transfer integrity is enforced at the database and service layers:
+
+- Transfers run inside a transaction and acquire pessimistic locks on the customer and account rows.
+- A unique sender-scoped idempotency key prevents duplicate execution on retries.
+- Amounts use `BigDecimal` in the API and `NUMERIC(19,2)` in PostgreSQL.
+- The transfer, balance changes, and matching debit/credit ledger entries commit together.
+
+Default limits are 50,000 TRY per transfer, 100,000 TRY daily, and 500,000 TRY monthly. They can be changed with `TRANSFER_LIMITS_PER_TRANSFER`, `TRANSFER_LIMITS_DAILY`, and `TRANSFER_LIMITS_MONTHLY`. The default business timezone is `Europe/Istanbul`; set `BUSINESS_TIME_ZONE` to change it.
+
+## Local authentication, protections, and assumptions
+
+The case-study demo does not depend on an external identity provider. The local profile therefore provides a small customer-ID/password login that issues a short-lived JWT. This lets a new user exercise the same authenticated, customer-scoped API without first registering an identity-provider account.
+
+The local flow is deliberately limited to evaluation:
+
+- Demo passwords are checked with BCrypt; JWTs are signed with an RSA key generated at backend startup and validated for signature, issuer, and expiry.
+- Tokens expire after 30 minutes. Since the signing key is regenerated at every startup, tokens from an earlier run stop working after a restart.
+- The demo login and synthetic seed data are enabled only by the `local` profile and are not enabled with `prod`.
+- Compose publishes the application ports on loopback. Use only synthetic data and never deploy the local demo credentials or mode.
+- A non-local deployment must configure a trusted issuer with `OIDC_ISSUER_URI` and provide customer provisioning. Production identity-provider registration and credentials are outside this demo.
+
+**Assumptions:** The three seeded customers and their accounts are test fixtures; balances and transfer history persist in the local Docker volume until it is reset. A React UI is included for convenience, but the backend API can also be exercised with Postman.
+
+## Tests
+
+### Backend
+
+Requires JDK 21 and Maven 3.9.9 or newer. From the repository root:
 
 ```powershell
 Set-Location backend
@@ -58,31 +95,11 @@ mvn test
 mvn verify
 ```
 
-`mvn test` runs the fast JUnit 5/Surefire suite. `mvn verify` also runs `*IT` integration tests through Failsafe. The account and transfer API integration tests use Testcontainers PostgreSQL and require a running Docker Engine. No H2 substitute is configured. Flyway applies the versioned customer, account, transfer, and ledger schema from `backend/src/main/resources/db/migration`; the `local` profile then seeds synthetic demo customers and accounts.
+`mvn test` runs the fast unit-test suite. `mvn verify` also runs the PostgreSQL integration tests through Testcontainers, so Docker must be running; it also checks the configured 80% instruction-coverage threshold.
 
-The UI shows full account IBANs, balances, remaining limits, monthly transfer totals, and separately filterable incoming and outgoing transfer history; transfer creation requires an active TRY account. The account endpoints are `GET /api/v1/accounts` and `GET /api/v1/accounts/transfer-limits`. Transfers are created with `POST /api/v1/transfers` (requires an `Idempotency-Key` header), listed with `GET /api/v1/transfers`, and viewed with `GET /api/v1/transfers/{transferId}`. Customers can filter the transfer list with `direction=INCOMING` or `direction=OUTGOING` and view a transfer when they are its sender or destination account owner. Monthly totals are available from `GET /api/v1/statistics/monthly-transfers`. Listing accepts optional inclusive `startDate`/`endDate` values in `YYYY-MM-DD` form and `page`/`size` pagination parameters (maximum size 100). A successful transfer debits and credits the two account balances and writes matching ledger entries in one database transaction. Defaults are 50,000 TRY per transfer, 100,000 TRY daily, and 500,000 TRY monthly. Override them with `TRANSFER_LIMITS_PER_TRANSFER`, `TRANSFER_LIMITS_DAILY`, and `TRANSFER_LIMITS_MONTHLY`; override the business timezone with `BUSINESS_TIME_ZONE` (default `Europe/Istanbul`).
+### Frontend
 
-The local Compose profile provides a customer ID/password form. These local-only demo credentials and synthetic account IBANs are:
-
-| Customer ID | Password | Account IBAN(s) |
-| --- | --- | --- |
-| `demo-customer` | `demo1234` | `TR0000000000000000000000001` |
-| `demo-recipient` | `transfer1234` | `TR0000000000000000000000003` |
-| `demo-customer-3` | `money1234` | `TR0000000000000000000000004` |
-
-The login IDs map to the seeded customer identity subjects. The demo endpoint checks BCrypt password hashes and issues a short-lived JWT for the matching customer; the token is then used for the same authenticated account, transfer, and statistics APIs. The backend generates a fresh RSA signing key on startup and validates the demo token's signature, issuer, and expiry; the key is not a shared or committed secret. Synthetic seed data is inserted only when missing, so restarting Compose preserves demo transfers and balances. To reset that data, use the documented `docker compose down --volumes` command.
-
-This is an explicit case-study assumption: the supplied PDF makes the React UI optional, treats security as a priority, and does not require or select an identity provider. A local demo JWT keeps the repository easy to run without an extra identity-provider service while still exercising authenticated, customer-scoped APIs. The demo endpoint and seed data exist only with Spring's `local` profile; Compose publishes the services on loopback and uses synthetic data. This mode is for local evaluation only and must not be used with real customer data or deployed.
-
-For a non-local deployment, configure a trusted issuer with `OIDC_ISSUER_URI` and run with the `prod` profile. The demo session endpoint and local seed are not registered outside `local`; startup with the `prod` profile fails if no issuer is configured. Production identity-provider registration, credentials, and customer provisioning remain deployment responsibilities.
-
-The Postman collection is at `docs/postman/money-transfer.postman_collection.json`. To try it locally, create a demo session with `POST http://localhost:8080/api/v1/demo/session` and a JSON body such as `{"customerId":"demo-customer","password":"demo1234"}`, then set the collection's `accessToken`, `sourceAccountId`, and `receiverIban` variables to the returned token and synthetic account values.
-
-JaCoCo reports are generated under `backend/target/site/jacoco/`. The 80% instruction-coverage gate is intended for application/domain functionality; the Spring Boot entry point and generated code are excluded. Trivial accessors should not be used to inflate the measured coverage.
-
-## Frontend
-
-Requires Node.js 24 and npm.
+Requires Node.js 24 and npm. From the repository root:
 
 ```powershell
 Set-Location frontend
@@ -91,8 +108,10 @@ npm test
 npm run build
 ```
 
-Vitest uses jsdom and React Testing Library. `npm run test:coverage` generates a local coverage report. Vite proxies `/api` requests to `http://localhost:8080` for local development; Docker Compose overrides the target to the backend service.
+`npm run build` type-checks the TypeScript and creates the production frontend bundle. `npm run test:coverage` generates a local frontend coverage report.
 
 ## Postman
 
-Import `docs/postman/money-transfer.postman_collection.json` and optionally `docs/postman/money-transfer.local.postman_environment.json.example`. API requests require a valid access token and a provisioned customer. Use synthetic data only.
+Import `docs/postman/money-transfer.postman_collection.json` and `docs/postman/money-transfer.local.postman_environment.json.example`, then select the **Money Transfer local demo** environment. Send **Create demo session** first; the collection saves the access token. Send **List accounts** next; it saves the source account ID. The example environment uses `demo-customer` as sender and `demo-recipient` as receiver.
+
+**Create transfer** sends real synthetic funds. **Replay transfer** resends the same request with the same idempotency key; **Reuse idempotency key with a different body** demonstrates the conflict response. To inspect incoming transfers, change the environment credentials to `demo-recipient` / `transfer1234`, create a new session, and send **List incoming transfers**.
