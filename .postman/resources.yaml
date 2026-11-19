@@ -1,7 +1,0 @@
-# Use this workspace to collaborate
-workspace:
-  id: 29241e44-e6b8-4fde-88a5-02ec3328c87f
-
-localResources:
-  collections:
-    - ../docs/postman/money-transfer.postman_collection.json
