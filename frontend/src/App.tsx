@@ -342,7 +342,7 @@ export function App() {
       {view === 'accounts' ? (
         <>
           <section className="summary-grid" aria-label="Summary">
-            <SummaryCard title="Toplam TRY bakiyesi" value={summaryLoading ? '—' : formatMoney(totalBalance)} />
+            <SummaryCard title="Total TRY balance" value={summaryLoading ? '—' : formatMoney(totalBalance)} />
             <SummaryCard
               title="Daily limit remaining"
               value={summaryLoading ? '—' : formatMoney(limits?.dailyRemaining ?? '0.00')}
