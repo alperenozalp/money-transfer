@@ -49,6 +49,66 @@ describe('application authentication', () => {
     )
   })
 
+  it.each([
+    ['PER_TRANSFER_LIMIT_EXCEEDED', 'The per-transfer limit was exceeded.'],
+    ['DAILY_LIMIT_EXCEEDED', 'The daily transfer limit would be exceeded.'],
+    ['MONTHLY_LIMIT_EXCEEDED', 'The monthly transfer limit would be exceeded.'],
+  ])('shows the specific transfer error for %s', async (code, message) => {
+    vi.stubEnv('VITE_DEMO_AUTH_ENABLED', 'true')
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/v1/demo/session') {
+        return apiResponse({
+          accessToken: 'demo-token',
+          tokenType: 'Bearer',
+          expiresIn: 1800,
+          customerId: 'demo-customer',
+          customerName: 'Demo User',
+        })
+      }
+      if (path === '/api/v1/accounts') {
+        return apiResponse([{
+          id: 'source-account',
+          iban: 'TR0000000000000000000000001',
+          currency: 'TRY',
+          status: 'ACTIVE',
+          balance: '7500.00',
+        }])
+      }
+      if (path === '/api/v1/accounts/transfer-limits') {
+        return apiResponse({
+          currency: 'TRY',
+          perTransferMaximum: '50000.00',
+          dailyRemaining: '100000.00',
+          monthlyRemaining: '500000.00',
+        })
+      }
+      if (path === '/api/v1/statistics/monthly-transfers') return apiResponse([])
+      if (path.startsWith('/api/v1/transfers?')) {
+        return apiResponse([], { page: 0, size: 10, totalElements: 0, totalPages: 0 })
+      }
+      if (path === '/api/v1/transfers') {
+        return new Response(JSON.stringify({ error: { code, message: 'Backend error' } }), {
+          status: 422,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected API request: ${path}`)
+    }))
+    const { App: DemoApp } = await import('./App')
+    render(<DemoApp />)
+
+    fireEvent.change(await screen.findByLabelText('Customer ID'), { target: { value: 'demo-customer' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    await screen.findByRole('option', { name: /0001/ })
+    fireEvent.change(screen.getByLabelText('Recipient IBAN'), { target: { value: 'TR0000000000000000000000003' } })
+    fireEvent.change(screen.getByLabelText(/Amount \(TRY\)/), { target: { value: '100' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send transfer' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+  })
+
   it('shows incoming transfers and identifies the sender in history and details', async () => {
     vi.stubEnv('VITE_DEMO_AUTH_ENABLED', 'true')
     const transfer = {

@@ -648,6 +648,9 @@ function getFriendlyError(error: unknown): string {
     if (error.status === 409) return 'This idempotency key was already used for a different transfer.'
     if (error.status === 422) {
       if (error.code === 'INSUFFICIENT_FUNDS') return 'The source account has insufficient funds.'
+      if (error.code === 'PER_TRANSFER_LIMIT_EXCEEDED') return 'The per-transfer limit was exceeded.'
+      if (error.code === 'DAILY_LIMIT_EXCEEDED') return 'The daily transfer limit would be exceeded.'
+      if (error.code === 'MONTHLY_LIMIT_EXCEEDED') return 'The monthly transfer limit would be exceeded.'
       if (error.code.includes('LIMIT_EXCEEDED')) return 'The transfer limit does not allow this transaction.'
       if (error.code === 'ACCOUNT_NOT_AVAILABLE') return 'The selected account or recipient IBAN is not available.'
       if (error.code === 'SAME_ACCOUNT') return 'Source and destination accounts must be different.'
