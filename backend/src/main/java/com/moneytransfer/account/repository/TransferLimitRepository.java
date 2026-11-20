@@ -17,6 +17,7 @@ public class TransferLimitRepository {
             JOIN customers c ON c.id = t.sender_customer_id
             WHERE c.identity_subject = ?
               AND t.status = 'COMPLETED'
+              AND t.source_account_id IS NOT NULL
               AND t.created_at >= ?
               AND t.created_at < ?
             """;

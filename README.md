@@ -42,9 +42,9 @@ Use the customer ID and password in the UI or in the Postman environment. Each d
 
 | Customer ID | Password | IBAN |
 | --- | --- | --- |
-| `demo-customer` | `demo1234` | `TR0000000000000000000000001` |
-| `demo-recipient` | `transfer1234` | `TR0000000000000000000000003` |
-| `demo-customer-3` | `money1234` | `TR0000000000000000000000004` |
+| `demo-customer` | `demo1234` | `TR000000000000000000000001` |
+| `demo-recipient` | `transfer1234` | `TR000000000000000000000003` |
+| `demo-customer-3` | `money1234` | `TR000000000000000000000004` |
 
 These are public demo credentials, not private or production credentials. Successful transfers update both account balances and create ledger entries.
 

@@ -46,12 +46,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TransferService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(TransferService.class);
     private static final String CURRENCY = "TRY";
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -121,10 +124,15 @@ public class TransferService {
             throw accountNotAvailable();
         }
 
+        LOGGER.info("Processing transfer request: senderSubject={}, sourceAccountId={}, receiverIban={}, amount={}",
+                identitySubject, request.sourceAccountId(), normalizedIban, request.amount());
+
         validateAccounts(source, destination);
         Snapshot limits = transferLimitService.currentFor(identitySubject);
         validateLimits(request.amount(), limits);
         if (source.getBalance().compareTo(request.amount()) < 0) {
+            LOGGER.warn("Transfer rejected due to insufficient funds: available={}, requested={}",
+                    source.getBalance(), request.amount());
             throw new TransferRuleException("INSUFFICIENT_FUNDS", "The source account has insufficient funds.");
         }
 
@@ -146,6 +154,9 @@ public class TransferService {
         ledgerEntryRepository.saveAll(List.of(
                 new LedgerEntry(transfer, source, LedgerDirection.DEBIT, request.amount(), now),
                 new LedgerEntry(transfer, destination, LedgerDirection.CREDIT, request.amount(), now)));
+
+        LOGGER.info("Transfer completed successfully: transferId={}, amount={}, fromIban={}, toIban={}",
+                transfer.getId(), transfer.getAmount(), source.getIban(), destination.getIban());
 
         return new CreationResult(toResponse(transfer, TransferDirection.OUTGOING), false);
     }
@@ -259,12 +270,17 @@ public class TransferService {
 
     private void validateLimits(BigDecimal amount, Snapshot limits) {
         if (amount.compareTo(limits.perTransferMaximum()) > 0) {
+            LOGGER.warn("Transfer limit exceeded (per-transfer): requested={}, maxAllowed={}", amount, limits.perTransferMaximum());
             throw new TransferRuleException("PER_TRANSFER_LIMIT_EXCEEDED", "The per-transfer limit was exceeded.");
         }
         if (limits.dailySpent().add(amount).compareTo(limits.dailyMaximum()) > 0) {
+            LOGGER.warn("Transfer limit exceeded (daily): requested={}, dailySpent={}, dailyMax={}",
+                    amount, limits.dailySpent(), limits.dailyMaximum());
             throw new TransferRuleException("DAILY_LIMIT_EXCEEDED", "The daily transfer limit would be exceeded.");
         }
         if (limits.monthlySpent().add(amount).compareTo(limits.monthlyMaximum()) > 0) {
+            LOGGER.warn("Transfer limit exceeded (monthly): requested={}, monthlySpent={}, monthlyMax={}",
+                    amount, limits.monthlySpent(), limits.monthlyMaximum());
             throw new TransferRuleException("MONTHLY_LIMIT_EXCEEDED", "The monthly transfer limit would be exceeded.");
         }
     }

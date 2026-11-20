@@ -27,7 +27,7 @@ import {
   type AuthSession,
 } from './auth'
 import { clearPendingTransferKey, getPendingTransferKey } from './pendingTransferKey'
-import { formatDate, formatMoney, maskIban } from './format'
+import { formatDate, formatIbanBlocks, formatAmountInput, formatMoney, maskIban } from './format'
 import { validateTransfer, type TransferFormValues } from './validation'
 import './App.css'
 
@@ -121,12 +121,16 @@ export function App() {
       setAccounts(accountList)
       setLimits(currentLimits)
       setStatistics(monthlyStatistics)
-      setForm((current) => ({
-        ...current,
-        sourceAccountId: current.sourceAccountId || accountList.find(
+      setForm((current) => {
+        const activeAccounts = accountList.filter(
           (account) => account.status === 'ACTIVE' && account.currency === 'TRY',
-        )?.id || '',
-      }))
+        )
+        const isCurrentValid = activeAccounts.some((account) => account.id === current.sourceAccountId)
+        return {
+          ...current,
+          sourceAccountId: isCurrentValid ? current.sourceAccountId : (activeAccounts[0]?.id || ''),
+        }
+      })
     } catch (error) {
       setSummaryError(getFriendlyError(error))
     } finally {
@@ -179,6 +183,12 @@ export function App() {
   }
 
   async function handleSignOut() {
+    clearPendingTransferKey()
+    setForm(EMPTY_FORM)
+    setAccounts([])
+    setLimits(null)
+    setStatistics([])
+    setTransfers([])
     try {
       await signOut()
       setUser(null)
@@ -202,15 +212,19 @@ export function App() {
     setSubmitting(true)
     try {
       const idempotencyKey = await getPendingTransferKey(form)
+      const cleanReceiverIban = form.receiverIban.replace(/\s/g, '').toUpperCase()
+      const normalizedAmount = form.amount.trim().replace(/,/g, '')
       const result = await createTransfer(accessToken, idempotencyKey, {
         sourceAccountId: form.sourceAccountId,
-        receiverIban: form.receiverIban.trim().toUpperCase(),
-        amount: form.amount,
+        receiverIban: cleanReceiverIban,
+        amount: normalizedAmount,
         description: form.description.trim() || undefined,
       })
       clearPendingTransferKey()
       setForm(EMPTY_FORM)
-      setFormSuccess(`Transfer completed. Transaction ID: ${result.id}`)
+      setFormSuccess(
+        `Successfully sent ${formatMoney(result.amount, result.currency)} to ${maskIban(result.receiverIban)}, Transaction ID: ${result.id}`,
+      )
       setPage(0)
       await refreshSummary()
       await refreshHistory()
@@ -407,10 +421,10 @@ export function App() {
                   Recipient IBAN
                   <input
                     autoComplete="off"
-                    maxLength={34}
-                    value={form.receiverIban}
+                    maxLength={42}
+                    value={formatIbanBlocks(form.receiverIban)}
                     onChange={(event) => setForm({ ...form, receiverIban: event.target.value.replace(/\s/g, '').toUpperCase() })}
-                    placeholder="TR…"
+                    placeholder="TR00 0000 0000 ..."
                     disabled={submitting}
                   />
                 </label>
@@ -419,7 +433,7 @@ export function App() {
                   <input
                     inputMode="decimal"
                     value={form.amount}
-                    onChange={(event) => setForm({ ...form, amount: event.target.value.replace(',', '.') })}
+                    onChange={(event) => setForm({ ...form, amount: formatAmountInput(event.target.value) })}
                     placeholder="0.00"
                     disabled={submitting}
                   />
@@ -585,9 +599,14 @@ function TransferRows({
           {transfers.map((transfer) => (
             <tr key={transfer.id}>
               <td>{transfer.direction === 'INCOMING' ? 'Incoming' : 'Outgoing'}</td>
-              <td>{maskIban(
-                transfer.direction === 'INCOMING' ? transfer.sourceIban : transfer.receiverIban,
-              )}</td>
+              <td>
+                <span className="muted" style={{ fontSize: '0.85em', marginRight: '4px' }}>
+                  {transfer.direction === 'INCOMING' ? 'From: ' : 'To: '}
+                </span>
+                {maskIban(
+                  transfer.direction === 'INCOMING' ? transfer.sourceIban : transfer.receiverIban,
+                )}
+              </td>
               <td>{transfer.description || '—'}</td>
               <td>{formatDate(transfer.createdAt)}</td>
               <td>
@@ -630,7 +649,9 @@ function getFriendlyError(error: unknown): string {
     if (error.status === 422) {
       if (error.code === 'INSUFFICIENT_FUNDS') return 'The source account has insufficient funds.'
       if (error.code.includes('LIMIT_EXCEEDED')) return 'The transfer limit does not allow this transaction.'
-      return 'The transfer could not be completed due to a business rule.'
+      if (error.code === 'ACCOUNT_NOT_AVAILABLE') return 'The selected account or recipient IBAN is not available.'
+      if (error.code === 'SAME_ACCOUNT') return 'Source and destination accounts must be different.'
+      return error.message || 'The transfer could not be completed due to a business rule.'
     }
     if (error.status === 400) return 'Please check the information you entered.'
     return 'The request could not be completed. Please try again.'

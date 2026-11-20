@@ -67,21 +67,46 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleTransferRule(
             TransferRuleException exception,
             HttpServletRequest request) {
-        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.getCode(), exception.getMessage(), request);
+        String traceId = TraceIdFilter.getTraceId(request);
+        LOGGER.warn("Transfer rule violation [traceId={}]: code={}, message={}, uri={}",
+                traceId, exception.getCode(), exception.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiErrorResponse.of(
+                        exception.getCode(),
+                        exception.getMessage(),
+                        traceId,
+                        request.getRequestURI(),
+                        null));
     }
 
     @ExceptionHandler(IdempotencyConflictException.class)
     public ResponseEntity<ApiErrorResponse> handleIdempotencyConflict(
             IdempotencyConflictException exception,
             HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", exception.getMessage(), request);
+        String traceId = TraceIdFilter.getTraceId(request);
+        LOGGER.warn("Idempotency conflict [traceId={}]: uri={}", traceId, request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(
+                        "IDEMPOTENCY_KEY_REUSED",
+                        exception.getMessage(),
+                        traceId,
+                        request.getRequestURI(),
+                        null));
     }
 
     @ExceptionHandler(TransferNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleTransferNotFound(
             TransferNotFoundException exception,
             HttpServletRequest request) {
-        return error(HttpStatus.NOT_FOUND, "TRANSFER_NOT_FOUND", exception.getMessage(), request);
+        String traceId = TraceIdFilter.getTraceId(request);
+        LOGGER.info("Transfer not found [traceId={}]: uri={}", traceId, request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(
+                        "TRANSFER_NOT_FOUND",
+                        exception.getMessage(),
+                        traceId,
+                        request.getRequestURI(),
+                        null));
     }
 
     @ExceptionHandler({
@@ -95,10 +120,24 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(
             Exception exception,
             HttpServletRequest request) {
-        String message = exception instanceof InvalidTransferQueryException
-                ? exception.getMessage()
-                : "The request is invalid.";
-        return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", message, request);
+        String traceId = TraceIdFilter.getTraceId(request);
+        java.util.List<String> details = null;
+        String message = "The request is invalid.";
+
+        if (exception instanceof MethodArgumentNotValidException validationException) {
+            details = validationException.getBindingResult().getFieldErrors().stream()
+                    .map(error -> "'" + error.getField() + "': " + error.getDefaultMessage())
+                    .toList();
+            message = "Validation failed: " + String.join(", ", details);
+        } else if (exception instanceof InvalidTransferQueryException queryException) {
+            message = queryException.getMessage();
+        } else if (exception instanceof MissingRequestHeaderException headerException) {
+            message = "Required header is missing: " + headerException.getHeaderName();
+        }
+
+        LOGGER.warn("Invalid request [traceId={}]: message={}, uri={}", traceId, message, request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of("INVALID_REQUEST", message, traceId, request.getRequestURI(), details));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

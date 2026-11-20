@@ -368,6 +368,30 @@
           }
         },
         {
+          "name": "List transfers by date interval",
+          "description": "Filter transfers within an inclusive business calendar date interval (startDate - endDate).",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transfers?startDate=2026-11-01&endDate=2026-11-30&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Date-filtered transfers are returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  pm.expect(body.meta).to.have.property('totalElements');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get transfer by ID",
           "request": {
             "method": "GET",
