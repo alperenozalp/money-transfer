@@ -6,10 +6,27 @@ A runnable money-transfer demo with a React UI, a Spring Boot API, and PostgreSQ
 
 You need Docker Engine/Desktop with Docker Compose v2. From the repository root, run in PowerShell:
 
+### macOS / Linux
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+### Windows (PowerShell)
+
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
+> **Port conflict note:** If you already have PostgreSQL running locally on port `5432`, Docker Compose will fail with `address already in use`. To fix this without stopping your local PostgreSQL, change the host port mapping in `docker-compose.yml`:
+>
+> ```yaml
+> ports:
+>   - "5433:5432"
+> ```
+>
+> The container still uses `5432` internally, so the backend connection is unaffected. 
 
 Compose starts PostgreSQL, runs the backend with the `local` profile, applies Flyway migrations, seeds the demo customers/accounts, and starts the frontend.
 
